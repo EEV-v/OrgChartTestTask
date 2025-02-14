@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using OrgChart.Core.Interfaces;
 using OrgChart.Core.Models;
 
@@ -11,43 +12,88 @@ public class EmployeeRepository : IEmployeeRepository
         _context = context;
     }
 
-    public Task<Employee?> GetByIdOrDefault(int id)
+    public async Task<Employee?> GetByIdOrDefault(int id)
     {
-        throw new NotImplementedException();
+        return await _context.Employees
+            .Include(e => e.Subordinates)
+            .FirstOrDefaultAsync(e => e.Id == id);
     }
 
-    public Task<List<Employee>> GetAll()
+    public async Task<List<Employee>> GetAll()
     {
-        throw new NotImplementedException();
+        return await _context.Employees.ToListAsync();
     }
 
-    public Task<Employee> AddEmployee(Employee employee)
+    public async Task<Employee> AddEmployee(Employee employee)
     {
-        throw new NotImplementedException();
+        await _context.AddAsync(employee);
+        return employee;
     }
 
     public Task UpdateEmployee(Employee employee)
     {
-        throw new NotImplementedException();
+        _context.Update(employee);
+        return _context.SaveChangesAsync();
     }
 
     public Task DeleteEmployee(Employee employee)
     {
-        throw new NotImplementedException();
+        _context.Remove(employee);
+        return _context.SaveChangesAsync();
     }
 
     public Task<int> GetSubordinateCount(int employeeId)
     {
-        throw new NotImplementedException();
+        return GetSubordinateCountAsync(employeeId);
     }
 
-    public Task<int> GetHierarchyDepth(int employeeId)
+    public async Task<int> GetHierarchyDepth(int employeeId)
     {
-        throw new NotImplementedException();
+        var hierarchyDepth = 1;
+        var employee = await GetByIdOrDefault(employeeId);
+
+        while (employee?.ManagerId != null)
+        {
+            hierarchyDepth++;
+            employee = await GetByIdOrDefault(employee.ManagerId.Value);
+        }
+
+        return hierarchyDepth;
     }
 
-    public Task<bool> HasCycle(int employeeId, int newManagerId)
+    public async Task<bool> HasCycle(int employeeId, int newManagerId)
     {
-        throw new NotImplementedException();
+        if (newManagerId == employeeId)
+        {
+            return true;
+        }
+
+        var employee = await GetByIdOrDefault(newManagerId);
+        while (employee?.ManagerId != null)
+        {
+            if (employee.ManagerId == employeeId)
+            {
+                return true;
+            }
+            employee = await GetByIdOrDefault(employee.ManagerId.Value);
+        }
+
+        return false;
+    }
+
+    private async Task<int> GetSubordinateCountAsync(int employeeId, int currentHierarchyLevel = 0)
+    {
+        var suboridnateCount = 0;
+        var employee = await GetByIdOrDefault(employeeId);
+
+        if (employee != null)
+        {
+            foreach (var subordinate in employee.Subordinates)
+            {
+                suboridnateCount += await GetSubordinateCountAsync(subordinate.Id, currentHierarchyLevel + 1);
+            }
+        }
+
+        return suboridnateCount;
     }
 }
