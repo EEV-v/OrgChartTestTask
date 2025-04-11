@@ -1,27 +1,35 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using OrgChart.Infrastructure;
 
 namespace OrgChart.IntegrationTests;
 
 public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
-    private readonly string _connectionString;
-
-    public CustomWebApplicationFactory(string connectionString)
-    {
-        _connectionString = connectionString;
-    }
-
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.ConfigureAppConfiguration((context, config) =>
+        builder.UseEnvironment("Testing");
+
+        builder.ConfigureServices(services =>
         {
-            var inMemorySettings = new Dictionary<string, string?>
-             {
-                 { "ConnectionStrings:DefaultConnection", _connectionString }
-             };
-            config.AddInMemoryCollection(inMemorySettings);
+            var descriptor = services.SingleOrDefault(
+                d => d.ServiceType == typeof(DbContextOptions<OrgChartDbContext>));
+
+            if (descriptor != null)
+            {
+                services.Remove(descriptor);
+            }
+
+            services.AddDbContext<OrgChartDbContext>(options =>
+            {
+                options.UseInMemoryDatabase($"InMemoryDbForTesting-{Guid.NewGuid()}");
+            });
         });
+
+        base.ConfigureWebHost(builder);
     }
 }

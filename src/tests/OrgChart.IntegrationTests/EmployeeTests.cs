@@ -1,45 +1,27 @@
 using System.Net;
 using System.Net.Http.Json;
 using OrgChart.Core.Models;
-using Testcontainers.PostgreSql;
 
 namespace OrgChart.IntegrationTests;
 
 /// <summary>
 /// Integration tests for employee-related operations.
 /// </summary>
-public class EmployeeTests : IAsyncLifetime
+public class EmployeeTests : IDisposable
 {
-    private HttpClient _client = default!;
-    private PostgreSqlContainer _postgreSqlContainer = default!;
-    private CustomWebApplicationFactory _factory = default!;
+    private readonly HttpClient _client;
+    private readonly CustomWebApplicationFactory _factory;
 
-    /// <summary>
-    /// Initializes the test class by setting up the PostgreSQL container and HTTP client.
-    /// </summary>
-    public async Task InitializeAsync()
+    public EmployeeTests()
     {
-        _postgreSqlContainer = new PostgreSqlBuilder()
-            .WithDatabase("orgchartdb")
-            .WithUsername("testuser")
-            .WithPassword("testpassword")
-            .WithPortBinding(5432, true) // use a dynamic host port
-            .Build();
-
-        await _postgreSqlContainer.StartAsync();
-
-        _factory = new CustomWebApplicationFactory(_postgreSqlContainer.GetConnectionString());
+        _factory = new CustomWebApplicationFactory();
         _client = _factory.CreateClient();
     }
 
-    /// <summary>
-    /// Disposes the test class by stopping the PostgreSQL container and disposing of the HTTP client.
-    /// </summary>
-    public async Task DisposeAsync()
+    public void Dispose()
     {
         _client.Dispose();
         _factory.Dispose();
-        await _postgreSqlContainer.StopAsync();
     }
 
     /// <summary>
@@ -265,7 +247,7 @@ public class EmployeeTests : IAsyncLifetime
         var emp3 = await response3.Content.ReadFromJsonAsync<Employee>();
         Assert.NotNull(emp3);
 
-        // Act: attempt to update emp1 so that its manager is emp3, 
+        // Act: attempt to update emp1 so that its manager is emp3,
         // creating a cycle: emp1 -> emp2 -> emp3 -> emp1.
         var updateDto = new EmployeeDto("Employee 1 Updated", emp3!.Id);
         var updateResponse = await _client.PutAsJsonAsync($"/api/employee/{emp1.Id}", updateDto);
@@ -293,7 +275,7 @@ public class EmployeeTests : IAsyncLifetime
         var deleteResponse = await _client.DeleteAsync($"/api/employee/{created!.Id}");
         Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
 
-        // Assert: 
+        // Assert:
         var getResponse = await _client.GetAsync($"/api/employee/{created.Id}");
         Assert.Equal(HttpStatusCode.NotFound, getResponse.StatusCode);
     }
